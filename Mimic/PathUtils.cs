@@ -31,33 +31,40 @@ namespace Mimic
 
         public static void CopyDirectoryRecursive(string fullSrcPath, string fullDestinationPath)
         {
-            DirectoryInfo dir = new DirectoryInfo(fullSrcPath);
-
-            if (!dir.Exists) {
+            DirectoryInfo srcDir = new DirectoryInfo(fullSrcPath);
+            if (!srcDir.Exists) {
                 throw new DirectoryNotFoundException(
                     "Source directory does not exist or could not be found: "
                     + fullSrcPath);
             }
 
-            DirectoryInfo[] dirs = dir.GetDirectories();
+            // Create destination directory structure
             if (!Directory.Exists(fullDestinationPath)) {
                 Directory.CreateDirectory(fullDestinationPath);
             }
 
-            FileInfo[] files = dir.GetFiles();
-            foreach (FileInfo file in files) {
+            // Copy all files
+            FileInfo[] srcFiles = srcDir.GetFiles();
+            foreach (FileInfo file in srcFiles) {
                 string temppath = Path.Combine(fullDestinationPath, file.Name);
-                file.CopyTo(temppath, false);
+                file.CopyTo(temppath, true);
             }
 
-            foreach (DirectoryInfo subdir in dirs) {
+            // Copy all directories
+            DirectoryInfo[] srcDirs = srcDir.GetDirectories();
+            foreach (DirectoryInfo subdir in srcDirs) {
                 string temppath = Path.Combine(fullDestinationPath, subdir.Name);
                 CopyDirectoryRecursive(subdir.FullName, temppath);
             }
         }
         public static void CopyPathRecursiveAndOverwrite(string fullSrcPath, string fullDestinationPath)
         {
-            if (File.Exists(fullSrcPath)) {
+            // Is File?
+            if (File.Exists(fullSrcPath))
+            {
+                // Create directory if doesn't exist
+                FileInfo fileInfo = new FileInfo(fullDestinationPath);
+                         fileInfo.Directory.Create(); 
                 File.Copy(fullSrcPath, fullDestinationPath, true);
             } else {
                 CopyDirectoryRecursive(fullSrcPath, fullDestinationPath);

@@ -11,17 +11,29 @@ using System.Configuration;
 
 namespace Mimic
 {
-    public class Program
+    public class Program : IDisposable
     {
         string m_appRoot;
+        FileMimic[] mimics;
 
         static Program m_instance = null;
+
         public static void Main(string[] args)
         {
-            if(m_instance == null) {
+            Console.Title = "Mimic - File Watcher (Version 1.03)";
+            // Don't allow more than one instance
+            if (Process.GetProcessesByName(Path.GetFileNameWithoutExtension(System.Reflection.Assembly.GetEntryAssembly().Location)).Count() > 1)
+            {
+                ConsoleWriter.WriteLine("You already have an instance running.");
+                Quit();
+                return;
+            }
+
+            if (m_instance == null) {
                 m_instance = new Program();
             }
             m_instance.Run();
+            m_instance.Dispose();
         }
 
         struct Configuration
@@ -30,6 +42,7 @@ namespace Mimic
             public string devRoot;
             public IEnumerable<string> watchPaths;
             public IEnumerable<string> devPaths;
+            public IEnumerable<string> excludedPaths;
         }
         Configuration ReadConfiguration()
         {
@@ -38,13 +51,14 @@ namespace Mimic
                 c.watchPaths = ConfigurationManager.AppSettings["watchPaths"].Split(',').Select(path => Path.GetFullPath(Path.Combine(c.watchRoot, path)));
                 c.devRoot = ConfigurationManager.AppSettings["devRoot"];
                 c.devPaths = ConfigurationManager.AppSettings["devPaths"].Split(',').Select(path => Path.GetFullPath(Path.Combine(c.devRoot, path)));
+                c.excludedPaths = ConfigurationManager.AppSettings["excludedPaths"].Split(',').Select(pathGlob => pathGlob.Trim());
 
             return c;
         }
 
-        void Quit()
+        static void Quit()
         {
-            Console.WriteLine("Enter \'q\' to quit.\n");
+            ConsoleWriter.WriteLine("Enter \'q\' to quit.\n");
             while (Console.Read() != 'q') ;
         }
 
@@ -55,7 +69,8 @@ namespace Mimic
             var config = ReadConfiguration();
 
             Console.WriteLine(  "Watch Paths:\n" + PathUtils.PathsToString(config.watchPaths) + "\n"
-                              + "Dev Paths:\n" + PathUtils.PathsToString(config.devPaths)
+                              + "Dev Paths:\n" + PathUtils.PathsToString(config.devPaths) + "\n"
+                              + "Excluded Paths Glob:\n" + PathUtils.PathsToString(config.excludedPaths)
                               + "\n"
                               );
 
@@ -77,33 +92,25 @@ namespace Mimic
         {
             var watchPaths = config.watchPaths.ToArray();
             var devPaths = config.devPaths.ToArray();
+            var excludedPaths = config.excludedPaths.ToArray();
 
-            for(var i = 0; i < watchPaths.Length; ++i)
+            mimics = new FileMimic[watchPaths.Length];
+            for (var i = 0; i < watchPaths.Length; ++i)
             {
-                var watcher = new FileWatchAndCopy(new FileWatcherConfiguration(
+                mimics[i] = new FileMimic(new FileWatcherConfiguration(
                     watchPaths[i], 
                     devPaths[i],
-                    1000
+                    excludedPaths
                 ));
             }
         }
 
-
-        /// <summary>
-        /// Find and read configuration file /mimic.json
-        /// </summary>
-        //static Dictionary<string, object> ReadConfiguration()
-        //{
-        //    var configPath = Path.Combine(System.Reflection.Assembly.GetExecutingAssembly().Location, "mimic.json");
-        //    Dictionary<string, object> values;
-
-        //    using (var reader = new StreamReader(configPath, Encoding.UTF8))
-        //    {
-        //        var json = reader.ReadToEnd();
-        //        JavaScriptSerializer serializer = new JavaScriptSerializer(); // System.Web.Extensions
-        //        values = serializer.Deserialize<Dictionary<string, object>>(json);
-        //    }
-        //    return values;
-        //}
+        public void Dispose()
+        {
+            ConsoleWriter.WriteLine("Exiting Application...");
+            foreach(var mimic in mimics) {
+                mimic.Dispose();
+            }
+        }
     }
 }
